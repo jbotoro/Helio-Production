@@ -13,6 +13,7 @@ export const TitleContainer = styled.h1`
   &:hover {
     color: grey;
   }
+  width: 75px;
 `;
 
 export const PreviewContainer = styled.div`
