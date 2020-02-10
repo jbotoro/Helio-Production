@@ -126,8 +126,7 @@ static void asciidump(dump_out* out, const char* buf, size_t len) {
   }
 }
 
-char* gpr_dump_return_len(const char* buf, size_t len, uint32_t flags,
-                          size_t* out_len) {
+char* gpr_dump(const char* buf, size_t len, uint32_t flags) {
   dump_out out = dump_out_create();
   if (flags & GPR_DUMP_HEX) {
     hexdump(&out, buf, len);
@@ -136,13 +135,7 @@ char* gpr_dump_return_len(const char* buf, size_t len, uint32_t flags,
     asciidump(&out, buf, len);
   }
   dump_out_append(&out, 0);
-  *out_len = out.length;
   return out.data;
-}
-
-char* gpr_dump(const char* buf, size_t len, uint32_t flags) {
-  size_t unused;
-  return gpr_dump_return_len(buf, len, flags, &unused);
 }
 
 int gpr_parse_bytes_to_uint32(const char* buf, size_t len, uint32_t* result) {
@@ -289,20 +282,15 @@ char* gpr_strvec_flatten(gpr_strvec* sv, size_t* final_length) {
   return gpr_strjoin((const char**)sv->strs, sv->count, final_length);
 }
 
-int gpr_strincmp(const char* a, const char* b, size_t n) {
+int gpr_stricmp(const char* a, const char* b) {
   int ca, cb;
   do {
     ca = tolower(*a);
     cb = tolower(*b);
     ++a;
     ++b;
-    --n;
-  } while (ca == cb && ca != 0 && cb != 0 && n != 0);
+  } while (ca == cb && ca && cb);
   return ca - cb;
-}
-
-int gpr_stricmp(const char* a, const char* b) {
-  return gpr_strincmp(a, b, SIZE_MAX);
 }
 
 static void add_string_to_split(const char* beg, const char* end, char*** strs,
@@ -344,22 +332,16 @@ void* gpr_memrchr(const void* s, int c, size_t n) {
   return nullptr;
 }
 
-bool gpr_parse_bool_value(const char* s, bool* dst) {
-  const char* kTrue[] = {"1", "t", "true", "y", "yes"};
-  const char* kFalse[] = {"0", "f", "false", "n", "no"};
-  static_assert(sizeof(kTrue) == sizeof(kFalse), "true_false_equal");
-
+bool gpr_is_true(const char* s) {
+  size_t i;
   if (s == nullptr) {
     return false;
   }
-  for (size_t i = 0; i < GPR_ARRAY_SIZE(kTrue); ++i) {
-    if (gpr_stricmp(s, kTrue[i]) == 0) {
-      *dst = true;
-      return true;
-    } else if (gpr_stricmp(s, kFalse[i]) == 0) {
-      *dst = false;
+  static const char* truthy[] = {"yes", "true", "1"};
+  for (i = 0; i < GPR_ARRAY_SIZE(truthy); i++) {
+    if (0 == gpr_stricmp(s, truthy[i])) {
       return true;
     }
   }
-  return false;  // didn't match a legal input
+  return false;
 }

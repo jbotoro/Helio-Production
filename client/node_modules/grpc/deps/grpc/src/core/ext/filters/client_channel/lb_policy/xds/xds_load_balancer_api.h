@@ -23,105 +23,67 @@
 
 #include <grpc/slice_buffer.h>
 
+#include "src/core/ext/filters/client_channel/lb_policy/grpclb/proto/grpc/lb/v1/load_balancer.pb.h"
 #include "src/core/ext/filters/client_channel/lb_policy/xds/xds_client_stats.h"
-#include "src/core/ext/filters/client_channel/server_address.h"
+#include "src/core/lib/iomgr/exec_ctx.h"
 
-namespace grpc_core {
+#define XDS_SERVICE_NAME_MAX_LENGTH 128
 
-struct XdsLocalityInfo {
-  bool operator==(const XdsLocalityInfo& other) const {
-    return *locality_name == *other.locality_name &&
-           serverlist == other.serverlist && lb_weight == other.lb_weight &&
-           priority == other.priority;
-  }
+typedef grpc_lb_v1_Server_ip_address_t xds_grpclb_ip_address;
+typedef grpc_lb_v1_LoadBalanceRequest xds_grpclb_request;
+typedef grpc_lb_v1_InitialLoadBalanceResponse xds_grpclb_initial_response;
+typedef grpc_lb_v1_Server xds_grpclb_server;
+typedef google_protobuf_Duration xds_grpclb_duration;
+typedef google_protobuf_Timestamp xds_grpclb_timestamp;
 
-  // This comparator only compares the locality names.
-  struct Less {
-    bool operator()(const XdsLocalityInfo& lhs,
-                    const XdsLocalityInfo& rhs) const {
-      return XdsLocalityName::Less()(lhs.locality_name, rhs.locality_name);
-    }
-  };
+typedef struct {
+  xds_grpclb_server** servers;
+  size_t num_servers;
+} xds_grpclb_serverlist;
 
-  RefCountedPtr<XdsLocalityName> locality_name;
-  ServerAddressList serverlist;
-  uint32_t lb_weight;
-  uint32_t priority;
-};
+/** Create a request for a gRPC LB service under \a lb_service_name */
+xds_grpclb_request* xds_grpclb_request_create(const char* lb_service_name);
+xds_grpclb_request* xds_grpclb_load_report_request_create_locked(
+    grpc_core::XdsLbClientStats* client_stats);
 
-using XdsLocalityList = InlinedVector<XdsLocalityInfo, 1>;
+/** Protocol Buffers v3-encode \a request */
+grpc_slice xds_grpclb_request_encode(const xds_grpclb_request* request);
 
-// There are two phases of accessing this class's content:
-// 1. to initialize in the control plane combiner;
-// 2. to use in the data plane combiner.
-// So no additional synchronization is needed.
-class XdsDropConfig : public RefCounted<XdsDropConfig> {
- public:
-  struct DropCategory {
-    bool operator==(const DropCategory& other) const {
-      return strcmp(name.get(), other.name.get()) == 0 &&
-             parts_per_million == other.parts_per_million;
-    }
+/** Destroy \a request */
+void xds_grpclb_request_destroy(xds_grpclb_request* request);
 
-    UniquePtr<char> name;
-    const uint32_t parts_per_million;
-  };
+/** Parse (ie, decode) the bytes in \a encoded_xds_grpclb_response as a \a
+ * xds_grpclb_initial_response */
+xds_grpclb_initial_response* xds_grpclb_initial_response_parse(
+    const grpc_slice& encoded_xds_grpclb_response);
 
-  using DropCategoryList = InlinedVector<DropCategory, 2>;
+/** Parse the list of servers from an encoded \a xds_grpclb_response */
+xds_grpclb_serverlist* xds_grpclb_response_parse_serverlist(
+    const grpc_slice& encoded_xds_grpclb_response);
 
-  void AddCategory(UniquePtr<char> name, uint32_t parts_per_million) {
-    drop_category_list_.emplace_back(
-        DropCategory{std::move(name), parts_per_million});
-  }
+/** Return a copy of \a sl. The caller is responsible for calling \a
+ * xds_grpclb_destroy_serverlist on the returned copy. */
+xds_grpclb_serverlist* xds_grpclb_serverlist_copy(
+    const xds_grpclb_serverlist* sl);
 
-  // The only method invoked from the data plane combiner.
-  bool ShouldDrop(const UniquePtr<char>** category_name) const;
+bool xds_grpclb_serverlist_equals(const xds_grpclb_serverlist* lhs,
+                                  const xds_grpclb_serverlist* rhs);
 
-  const DropCategoryList& drop_category_list() const {
-    return drop_category_list_;
-  }
+bool xds_grpclb_server_equals(const xds_grpclb_server* lhs,
+                              const xds_grpclb_server* rhs);
 
-  bool operator==(const XdsDropConfig& other) const {
-    return drop_category_list_ == other.drop_category_list_;
-  }
-  bool operator!=(const XdsDropConfig& other) const {
-    return !(*this == other);
-  }
+/** Destroy \a serverlist */
+void xds_grpclb_destroy_serverlist(xds_grpclb_serverlist* serverlist);
 
- private:
-  DropCategoryList drop_category_list_;
-};
+/** Compare \a lhs against \a rhs and return 0 if \a lhs and \a rhs are equal,
+ * < 0 if \a lhs represents a duration shorter than \a rhs and > 0 otherwise */
+int xds_grpclb_duration_compare(const xds_grpclb_duration* lhs,
+                                const xds_grpclb_duration* rhs);
 
-struct XdsUpdate {
-  XdsLocalityList locality_list;
-  RefCountedPtr<XdsDropConfig> drop_config;
-  bool drop_all = false;
-};
+grpc_millis xds_grpclb_duration_to_millis(xds_grpclb_duration* duration_pb);
 
-// Creates an EDS request querying \a service_name.
-grpc_slice XdsEdsRequestCreateAndEncode(const char* service_name);
-
-// Parses the EDS response and returns the args to update locality map. If there
-// is any error, the output update is invalid.
-grpc_error* XdsEdsResponseDecodeAndParse(const grpc_slice& encoded_response,
-                                         XdsUpdate* update);
-
-// Creates an LRS request querying \a server_name.
-grpc_slice XdsLrsRequestCreateAndEncode(const char* server_name);
-
-// Creates an LRS request sending client-side load reports. If all the counters
-// in \a client_stats are zero, returns empty slice.
-grpc_slice XdsLrsRequestCreateAndEncode(const char* server_name,
-                                        XdsClientStats* client_stats);
-
-// Parses the LRS response and returns the client-side load reporting interval.
-// If there is any error (e.g., the found server name doesn't match \a
-// expected_server_name), the output config is invalid.
-grpc_error* XdsLrsResponseDecodeAndParse(const grpc_slice& encoded_response,
-                                         grpc_millis* load_reporting_interval,
-                                         const char* expected_server_name);
-
-}  // namespace grpc_core
+/** Destroy \a initial_response */
+void xds_grpclb_initial_response_destroy(xds_grpclb_initial_response* response);
 
 #endif /* GRPC_CORE_EXT_FILTERS_CLIENT_CHANNEL_LB_POLICY_XDS_XDS_LOAD_BALANCER_API_H \
         */
