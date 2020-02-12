@@ -5,7 +5,7 @@ import {connect} from 'react-redux';
 
 import {default as CartIcon} from '../cart-icon/cart-icon.container'
 import { ReactComponent as Logo} from '../../assets/solar-system.svg'
-import CartDropDown from '../cart-dropdown/cart-dropdown.component'
+import {default as CartDropDown} from '../cart-dropdown/cart-dropdown.container'
 import {createStructuredSelector} from 'reselect';
 
 import {selectCurrentUser} from '../../redux/user/user.selectors'
