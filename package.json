@@ -21,6 +21,7 @@
     "dotenv": "7.0.0",
     "express": "^4.16.4",
     "express-sslify": "1.2.0",
+    "lodash": "^4.17.15",
     "stripe": "6.28.0"
   },
   "devDependencies": {
