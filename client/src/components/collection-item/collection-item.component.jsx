@@ -1,9 +1,9 @@
-import React from 'react';
+import React from 'react'
 
 
 
-import { 
-    CollectionItemContainer, 
+import {
+    CollectionItemContainer,
     CollectionFooterContainer,
     AddButton,
     NameContainer,
@@ -12,20 +12,29 @@ import {
 
 } from './collection-item.styles'
 
-const CollectionItem = ({item, addItem}) => {
-    const {name,price,imageUrl} = item;
-    return(
+const CollectionItem = ({ item, addItem }) => {
+    const { name, price, imageUrl } = item;
+
+    debugger
+
+    return (
         <CollectionItemContainer>
-            <BackgroundImage className='image' imageUrl ={imageUrl}/>
+            <BackgroundImage
+                className='image'
+                style={{
+                    backgroundImage: `url(${imageUrl})`
+                }}
+            />
             <CollectionFooterContainer>
                 <NameContainer>{name}</NameContainer>
                 <PriceContainer>{price}</PriceContainer>
             </CollectionFooterContainer>
-            <AddButton  onClick={() => addItem(item)} inverted> Add to cart</AddButton>
+            <AddButton onClick={() => addItem(item)} inverted>
+                Add to cart
+            </AddButton>
         </CollectionItemContainer>
-    )
-    
-}
+    );
+};
 
+export default CollectionItem;
 
-export default (CollectionItem);
