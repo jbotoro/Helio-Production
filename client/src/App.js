@@ -4,7 +4,7 @@ import {GlobalStyle} from './global.styles'
 import {Switch, Route, Redirect} from 'react-router-dom'
 import HomePage from './pages/homepage/HomePage.component';
 import ShopPage from './pages/shop/shop.component'
-import {default as Header} from './components/header/header.container'
+import {default as Header} from './components/header/header.component'
 import SignInAndSignUpPage from './pages/sign-in-and-signup/sign-in-and-signup.component'
 
 import { connect } from 'react-redux';
