@@ -34,8 +34,56 @@ Helio-live is a ecommerce web application, the goal was to create a lightweight 
    
    ![loginwithGoogle](https://github.com/jbotoro/markdown_images/blob/master/googleLoginHelio.gif)
    
+   ``` javascript
+      export const auth = firebase.auth();
+      export const firestore = firebase.firestore();
+
+      export const googleProvider = new firebase.auth.GoogleAuthProvider();
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
+      export const signInWithGoogle = () => auth.signInWithPopup(googleProvider);
+
+      export default firebase;
+   
+   ```
+   
    * Users cart and cartItems persist if user logged in.
    * Redux-persist used to ensure that state stays the same even on refresh
+   
+   ``` javascript
+    export const store = createStore(rootReducer, applyMiddleware(...middlewares))
+
+    export const persistor = persistStore(store);
+
+    sagaMiddleware.run(rootSaga);
+
+    export default {store, persistor};
+   ```
+   
+   
+   ``` javascript
+        <PersistGate persistor={persistor}>
+          <App />
+        </PersistGate>
+   
+   ```
+   
+   
+   ``` javascript
+    const persistConfig = {
+      key: 'root',
+      storage,
+      whitelist: ['cart']
+    };
+
+    const rootReducer = combineReducers({
+      user: userReducer,
+      cart: cartReducer,
+      directory: directoryReducer,
+      shop: shopReducer
+    });
+
+    export default persistReducer(persistConfig, rootReducer);
+   ```
    
    
  
@@ -44,9 +92,52 @@ Helio-live is a ecommerce web application, the goal was to create a lightweight 
      
      
    ![featuredListSplash](https://github.com/jbotoro/markdown_images/blob/master/splash_page.png)
+   ``` javascript
+      const Directory = ({ sections }) => (
+        <DirectoryMenuContainer>
+          {sections.map(({ id, ...otherSectionProps }) => (
+            <MenuItem key={id} {...otherSectionProps} />
+           ))}
+        </DirectoryMenuContainer>
+       );
+   ```
    * NavBar has cartIcon and cart Dropdown list, cartIcon updates with number of items in cart . 
    ![cartItemsNavbar](https://github.com/jbotoro/markdown_images/blob/master/cart_icon.png)
+   ``` javascript
+    export const CartIcon = ({ toggleCartHidden, itemCount }) => (
+      <CartContainer onClick={toggleCartHidden}>
+        <ShoppingIcon />
+        <ItemCountContainer>{itemCount}</ItemCountContainer>
+      </CartContainer>
+    );
+   ```
+   
    ![cartDropdown](https://github.com/jbotoro/markdown_images/blob/master/cart_dropdown.png)
+   
+   ``` javascript
+     export const CartDropdown = ({ cartItems, history, dispatch }) => (
+      <CartDropdownContainer>
+        <CartItemsContainer>
+          {cartItems.length ? (
+            cartItems.map(cartItem => (
+              <CartItem key={cartItem.id} item={cartItem} />
+            ))
+          ) : (
+              <EmptyMessageContainer>Your cart is empty</EmptyMessageContainer>
+            )}
+        </CartItemsContainer>
+        <CartDropdownButton
+          onClick={() => {
+            history.push('/checkout');
+            dispatch(toggleCartHidden());
+          }}
+        >
+          GO TO CHECKOUT
+        </CartDropdownButton>
+      </CartDropdownContainer>
+  );
+   
+   ```
    
    
 #### Browse clothing by collection type
@@ -71,4 +162,39 @@ Helio-live is a ecommerce web application, the goal was to create a lightweight 
      
      
    ![stripePayment](https://github.com/jbotoro/markdown_images/blob/master/stripe_checkout.png)
-
+   
+   
+   ``` javascript
+       const CheckoutPage = ({ cartItems, total }) => (
+        <CheckoutPageContainer>
+          <CheckoutHeaderContainer>
+            <HeaderBlockContainer>
+              <span>Product</span>
+            </HeaderBlockContainer>
+            <HeaderBlockContainer>
+              <span>Description</span>
+            </HeaderBlockContainer>
+            <HeaderBlockContainer>
+              <span>Quantity</span>
+            </HeaderBlockContainer>
+            <HeaderBlockContainer>
+              <span>Price</span>
+            </HeaderBlockContainer>
+            <HeaderBlockContainer>
+              <span>Remove</span>
+            </HeaderBlockContainer>
+          </CheckoutHeaderContainer>
+          {cartItems.map(cartItem => (
+            <CheckoutItem key={cartItem.id} cartItem={cartItem} />
+          ))}
+          <TotalContainer>TOTAL: ${total}</TotalContainer>
+          <WarningContainer>
+            *Please use the following test credit card for payments*
+            <br />
+            4242 4242 4242 4242 - Exp: 11/20 - CVV: 123
+          </WarningContainer>
+          <StripeCheckoutButton price={total} />
+        </CheckoutPageContainer>
+    );
+   
+   ```
